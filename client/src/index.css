@@ -1,0 +1,80 @@
+/* Import Google Fonts for Arabic */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply bg-gray-50 text-gray-900;
+}
+
+/* Nutrition label specific fonts */
+.label-font {
+  font-family: 'Arial', 'Helvetica', sans-serif;
+}
+
+.label-title {
+  font-family: 'Arial Black', 'Arial', sans-serif;
+}
+
+/* Arabic font support */
+.font-arabic {
+  font-family: 'Noto Naskh Arabic', 'Arial', sans-serif;
+}
+
+/* RTL support for Arabic text */
+[dir="rtl"] {
+  text-align: right;
+}
+
+/* Tabular numbers for nutrition values */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Traffic light label colors */
+.traffic-light-low {
+  background-color: #33a532;
+}
+
+.traffic-light-medium {
+  background-color: #f5a623;
+}
+
+.traffic-light-high {
+  background-color: #d0021b;
+}
+
+/* Canvas container */
+.canvas-container {
+  @apply border border-gray-300 rounded-lg bg-white shadow-sm;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded hover:bg-gray-400;
+}
+
+/* Input styles */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
