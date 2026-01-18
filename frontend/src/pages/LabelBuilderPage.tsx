@@ -25,6 +25,11 @@ import {
   ChevronDown,
   Image,
   Upload,
+  FolderOpen,
+  FileText,
+  ExternalLink,
+  Calendar,
+  Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { LabelElement, NutritionSummary } from '../types';
@@ -331,6 +336,7 @@ const NUTRIENT_DEFINITIONS = [
   { key: 'dietary_fiber', nameEn: 'Dietary Fiber', nameAr: 'الألياف الغذائية', nameHi: 'आहार फाइबर', nameZh: '膳食纤维', nameEs: 'Fibra Dietética', nameFr: 'Fibres alimentaires', unit: 'g', category: 'core', required: true, bold: false, indent: 1, showDV: true },
   { key: 'total_sugars', nameEn: 'Total Sugars', nameAr: 'السكريات الكلية', nameHi: 'कुल शर्करा', nameZh: '总糖', nameEs: 'Azúcares Totales', nameFr: 'Sucres totaux', unit: 'g', category: 'core', required: true, bold: false, indent: 1, showDV: false },
   { key: 'added_sugars', nameEn: 'Includes Added Sugars', nameAr: 'يشمل السكريات المضافة', nameHi: 'अतिरिक्त शर्करा शामिल', nameZh: '包含添加糖', nameEs: 'Incluye Azúcares Añadidos', nameFr: 'Dont sucres ajoutés', unit: 'g', category: 'core', required: true, bold: false, indent: 2, showDV: true },
+  { key: 'natural_sugars', nameEn: 'Natural Sugars', nameAr: 'السكريات الطبيعية', nameHi: 'प्राकृतिक शर्करा', nameZh: '天然糖', nameEs: 'Azúcares Naturales', nameFr: 'Sucres naturels', unit: 'g', category: 'core', required: false, bold: false, indent: 2, showDV: false },
   { key: 'protein', nameEn: 'Protein', nameAr: 'البروتين', nameHi: 'प्रोटीन', nameZh: '蛋白质', nameEs: 'Proteína', nameFr: 'Protéines', unit: 'g', category: 'core', required: true, bold: true, indent: 0, showDV: false },
   // Mandatory vitamins & minerals (FDA 2020)
   { key: 'vitamin_d', nameEn: 'Vitamin D', nameAr: 'فيتامين د', nameHi: 'विटामिन डी', nameZh: '维生素D', nameEs: 'Vitamina D', nameFr: 'Vitamine D', unit: 'mcg', category: 'vitamin', required: true, bold: false, indent: 0, showDV: true },
@@ -366,9 +372,6 @@ const NUTRIENT_DEFINITIONS = [
 
 // Element types for the toolbar
 const ELEMENT_TYPES = [
-  { type: 'nutrition-box', label: 'Nutrition Box', icon: Square },
-  { type: 'ingredients-list', label: 'Ingredients', icon: List },
-  { type: 'allergens', label: 'Allergens', icon: AlertTriangle },
   { type: 'business-info', label: 'Business Info', icon: Building },
   { type: 'text', label: 'Text', icon: Type },
   { type: 'line', label: 'Line', icon: Minus },
@@ -439,6 +442,323 @@ const AVAILABLE_LANGUAGES = [
   { code: 'ur', name: 'Urdu', nameNative: 'اردو', dir: 'rtl' },
   { code: 'bn', name: 'Bengali', nameNative: 'বাংলা', dir: 'ltr' },
 ];
+
+// Market/Region definitions with required languages and regulations
+interface MarketRegulation {
+  id: string;
+  name: string;
+  country: string;
+  requiredLanguages: string[];  // Language codes that are mandatory
+  suggestedLanguages: string[]; // Additional commonly used languages
+  dvRegion: DVRegion;
+  regulationName: string;
+  regulationReference: string;
+  regulationLink?: string;
+  lastUpdated: string;  // ISO date string
+  sugarBifurcation: boolean;  // Whether to show added/natural sugar split
+  notes?: string;
+}
+
+const MARKET_REGULATIONS: MarketRegulation[] = [
+  {
+    id: 'usa',
+    name: 'United States',
+    country: 'USA',
+    requiredLanguages: ['en'],
+    suggestedLanguages: ['es'],
+    dvRegion: 'fda_us',
+    regulationName: 'FDA Nutrition Facts Label',
+    regulationReference: '21 CFR 101.9',
+    regulationLink: 'https://www.ecfr.gov/current/title-21/chapter-I/subchapter-B/part-101/subpart-A/section-101.9',
+    lastUpdated: '2020-01-01',
+    sugarBifurcation: true,
+    notes: 'Added sugars declaration mandatory since 2020',
+  },
+  {
+    id: 'saudi',
+    name: 'Saudi Arabia',
+    country: 'KSA',
+    requiredLanguages: ['ar', 'en'],
+    suggestedLanguages: [],
+    dvRegion: 'gso_gcc',
+    regulationName: 'GSO Nutrition Labelling',
+    regulationReference: 'GSO 2233:2012',
+    regulationLink: 'https://www.saso.gov.sa',
+    lastUpdated: '2022-06-01',
+    sugarBifurcation: true,
+    notes: 'Arabic mandatory. GSO now requires added sugar declaration.',
+  },
+  {
+    id: 'uae',
+    name: 'United Arab Emirates',
+    country: 'UAE',
+    requiredLanguages: ['ar', 'en'],
+    suggestedLanguages: [],
+    dvRegion: 'gso_gcc',
+    regulationName: 'GSO Nutrition Labelling',
+    regulationReference: 'GSO 2233:2012',
+    lastUpdated: '2022-06-01',
+    sugarBifurcation: true,
+  },
+  {
+    id: 'india',
+    name: 'India',
+    country: 'IND',
+    requiredLanguages: ['en'],
+    suggestedLanguages: ['hi', 'bn'],
+    dvRegion: 'india_fssai',
+    regulationName: 'FSSAI Nutrition Labelling',
+    regulationReference: 'FSSAI FSS (Labelling and Display) Regulations 2020',
+    regulationLink: 'https://www.fssai.gov.in',
+    lastUpdated: '2020-01-01',
+    sugarBifurcation: false,
+    notes: 'Hindi recommended for consumer products',
+  },
+  {
+    id: 'eu',
+    name: 'European Union',
+    country: 'EU',
+    requiredLanguages: [],  // Varies by member state
+    suggestedLanguages: ['en', 'fr', 'es'],
+    dvRegion: 'eu',
+    regulationName: 'EU Nutrition Declaration',
+    regulationReference: 'Regulation (EU) No 1169/2011',
+    regulationLink: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32011R1169',
+    lastUpdated: '2016-12-13',
+    sugarBifurcation: false,
+    notes: 'Language depends on member state. Per 100g/100ml mandatory.',
+  },
+  {
+    id: 'china',
+    name: 'China',
+    country: 'CHN',
+    requiredLanguages: ['zh'],
+    suggestedLanguages: ['en'],
+    dvRegion: 'codex',
+    regulationName: 'GB 28050 Nutrition Labelling',
+    regulationReference: 'GB 28050-2011',
+    lastUpdated: '2013-01-01',
+    sugarBifurcation: false,
+    notes: 'Chinese mandatory. NRV (Nutrient Reference Values) used.',
+  },
+  {
+    id: 'canada',
+    name: 'Canada',
+    country: 'CAN',
+    requiredLanguages: ['en', 'fr'],
+    suggestedLanguages: [],
+    dvRegion: 'fda_us',  // Similar to FDA
+    regulationName: 'Nutrition Facts Table (NFt)',
+    regulationReference: 'FDR B.01.401',
+    regulationLink: 'https://www.canada.ca/en/health-canada/services/food-nutrition/food-labelling.html',
+    lastUpdated: '2022-01-01',
+    sugarBifurcation: true,
+    notes: 'Bilingual (English/French) mandatory',
+  },
+];
+
+// Rounding rules by regulation
+interface RoundingRule {
+  nutrient: string;
+  thresholds: { max: number; increment: number; decimals: number }[];
+  defaultDecimals: number;
+}
+
+const FDA_ROUNDING_RULES: RoundingRule[] = [
+  { nutrient: 'calories', thresholds: [{ max: 5, increment: 0, decimals: 0 }, { max: 50, increment: 5, decimals: 0 }], defaultDecimals: 0 },
+  { nutrient: 'total_fat', thresholds: [{ max: 0.5, increment: 0, decimals: 0 }, { max: 5, increment: 0.5, decimals: 1 }], defaultDecimals: 0 },
+  { nutrient: 'saturated_fat', thresholds: [{ max: 0.5, increment: 0, decimals: 0 }, { max: 5, increment: 0.5, decimals: 1 }], defaultDecimals: 0 },
+  { nutrient: 'trans_fat', thresholds: [{ max: 0.5, increment: 0, decimals: 0 }, { max: 5, increment: 0.5, decimals: 1 }], defaultDecimals: 0 },
+  { nutrient: 'cholesterol', thresholds: [{ max: 2, increment: 0, decimals: 0 }, { max: 5, increment: 5, decimals: 0 }], defaultDecimals: 0 },
+  { nutrient: 'sodium', thresholds: [{ max: 5, increment: 0, decimals: 0 }, { max: 140, increment: 5, decimals: 0 }], defaultDecimals: 0 },
+  { nutrient: 'total_carbs', thresholds: [{ max: 0.5, increment: 0, decimals: 0 }], defaultDecimals: 0 },
+  { nutrient: 'dietary_fiber', thresholds: [{ max: 0.5, increment: 0, decimals: 0 }], defaultDecimals: 0 },
+  { nutrient: 'total_sugars', thresholds: [{ max: 0.5, increment: 0, decimals: 0 }], defaultDecimals: 0 },
+  { nutrient: 'added_sugars', thresholds: [{ max: 0.5, increment: 0, decimals: 0 }], defaultDecimals: 0 },
+  { nutrient: 'protein', thresholds: [{ max: 0.5, increment: 0, decimals: 0 }], defaultDecimals: 0 },
+];
+
+// Apply FDA rounding rules to a value
+function applyRoundingRule(nutrientKey: string, value: number, rules: RoundingRule[] = FDA_ROUNDING_RULES): number {
+  const rule = rules.find(r => r.nutrient === nutrientKey);
+  if (!rule) return Math.round(value);
+
+  for (const threshold of rule.thresholds) {
+    if (value < threshold.max) {
+      if (threshold.increment === 0) return 0;
+      return Math.round(value / threshold.increment) * threshold.increment;
+    }
+  }
+
+  const factor = Math.pow(10, rule.defaultDecimals);
+  return Math.round(value * factor) / factor;
+}
+
+// Regulation change tracking
+interface RegulationUpdate {
+  marketId: string;
+  previousVersion: string;
+  newVersion: string;
+  changeDate: string;
+  changes: string[];
+  impactLevel: 'low' | 'medium' | 'high';
+  // Additional fields for alert modal display
+  description?: string;
+  severity?: 'breaking' | 'major' | 'minor';
+  affectedFields?: string[];
+}
+
+const RECENT_REGULATION_UPDATES: RegulationUpdate[] = [
+  {
+    marketId: 'saudi',
+    previousVersion: 'GSO 2233:2012',
+    newVersion: 'GSO 2233:2021',
+    changeDate: '2022-06-01',
+    changes: [
+      'Added sugars declaration now mandatory',
+      'Updated DV percentages for vitamins',
+      'New format requirements for bilingual labels',
+    ],
+    impactLevel: 'high',
+    description: 'GSO 2233:2021 now requires declaration of added sugars separately from total sugars. Sugar bifurcation is mandatory.',
+    severity: 'breaking',
+    affectedFields: ['total_sugars', 'added_sugars', 'natural_sugars'],
+  },
+  {
+    marketId: 'usa',
+    previousVersion: '21 CFR 101.9 (2016)',
+    newVersion: '21 CFR 101.9 (2020)',
+    changeDate: '2020-01-01',
+    changes: [
+      'Added sugars declaration mandatory',
+      'Updated Vitamin D and Potassium requirements',
+      'New Daily Values for many nutrients',
+    ],
+    impactLevel: 'high',
+    description: 'FDA Nutrition Facts Label update requires added sugars declaration and updates Daily Values for multiple nutrients.',
+    severity: 'major',
+    affectedFields: ['added_sugars', 'vitamin_d', 'potassium', 'daily_values'],
+  },
+];
+
+// Compliance status types
+type ComplianceStatus = 'compliant' | 'review_needed' | 'non_compliant' | 'draft';
+
+// Mock saved labels for prototype demonstration
+interface SavedLabel {
+  id: string;
+  name: string;
+  productName: string;
+  marketId: string;
+  regulationVersion: string;
+  regulationDate: string;
+  createdDate: string;
+  activatedDate?: string;
+  status: ComplianceStatus;
+  referenceLink?: string;
+  referenceFile?: string;
+  // Sugar values for bifurcation demo
+  totalSugar?: number;
+  addedSugar?: number;
+  naturalSugar?: number;
+}
+
+const MOCK_SAVED_LABELS: SavedLabel[] = [
+  {
+    id: 'label-1',
+    name: 'Chocolate Cookies - Saudi Market',
+    productName: 'Chocolate Chip Cookies',
+    marketId: 'saudi',
+    regulationVersion: 'GSO 2233:2012',  // OLD version - should trigger alert
+    regulationDate: '2012-01-01',
+    createdDate: '2021-05-15',
+    activatedDate: '2021-06-01',
+    status: 'review_needed',
+    referenceLink: 'https://www.saso.gov.sa/ar/about/Pages/default.aspx',
+    totalSugar: 15,
+    addedSugar: 10,
+    naturalSugar: 5,
+  },
+  {
+    id: 'label-2',
+    name: 'Orange Juice - UAE Market',
+    productName: 'Fresh Orange Juice',
+    marketId: 'uae',
+    regulationVersion: 'GSO 2233:2021',  // Current version - compliant
+    regulationDate: '2022-06-01',
+    createdDate: '2023-01-10',
+    activatedDate: '2023-02-01',
+    status: 'compliant',
+    referenceLink: 'https://www.saso.gov.sa/ar/about/Pages/default.aspx',
+    totalSugar: 22,
+    addedSugar: 0,
+    naturalSugar: 22,
+  },
+  {
+    id: 'label-3',
+    name: 'Protein Bar - US Market',
+    productName: 'High Protein Energy Bar',
+    marketId: 'usa',
+    regulationVersion: '21 CFR 101.9 (2016)',  // OLD version - should trigger alert
+    regulationDate: '2016-01-01',
+    createdDate: '2019-08-20',
+    status: 'review_needed',
+    totalSugar: 8,
+    addedSugar: 6,
+    naturalSugar: 2,
+  },
+  {
+    id: 'label-4',
+    name: 'New Product - Draft',
+    productName: 'Organic Granola',
+    marketId: 'usa',
+    regulationVersion: '21 CFR 101.9 (2020)',
+    regulationDate: '2020-01-01',
+    createdDate: '2026-01-18',
+    status: 'draft',
+    totalSugar: 12,
+    addedSugar: 4,
+    naturalSugar: 8,
+  },
+  {
+    id: 'label-5',
+    name: 'Cereal - India Market',
+    productName: 'Wheat Flakes Cereal',
+    marketId: 'india',
+    regulationVersion: 'FSSAI 2020',
+    regulationDate: '2020-01-01',
+    createdDate: '2024-03-15',
+    activatedDate: '2024-04-01',
+    status: 'compliant',
+    referenceLink: 'https://www.fssai.gov.in',
+    totalSugar: 18,
+    addedSugar: 12,
+    naturalSugar: 6,
+  },
+];
+
+// Get compliance status info
+function getComplianceInfo(status: ComplianceStatus): { label: string; color: string; bgColor: string; icon: string } {
+  switch (status) {
+    case 'compliant':
+      return { label: 'Compliant', color: 'text-green-700', bgColor: 'bg-green-100', icon: '✓' };
+    case 'review_needed':
+      return { label: 'Review Needed', color: 'text-amber-700', bgColor: 'bg-amber-100', icon: '⚠' };
+    case 'non_compliant':
+      return { label: 'Non-Compliant', color: 'text-red-700', bgColor: 'bg-red-100', icon: '✕' };
+    case 'draft':
+      return { label: 'Draft', color: 'text-gray-700', bgColor: 'bg-gray-100', icon: '📋' };
+  }
+}
+
+// Check if a label needs review based on regulation updates
+function checkLabelCompliance(label: SavedLabel): { needsReview: boolean; updates: RegulationUpdate[] } {
+  const updates = RECENT_REGULATION_UPDATES.filter(u =>
+    u.marketId === label.marketId &&
+    new Date(u.changeDate) > new Date(label.regulationDate)
+  );
+  return { needsReview: updates.length > 0, updates };
+}
 
 // Default design settings
 interface DesignSettings {
@@ -554,6 +874,36 @@ export default function LabelBuilderPage() {
     preferSodiumOverSalt: true,
     preferCalorieOverJoule: true,
   });
+
+  // Market/Regulation state
+  const [selectedMarket, setSelectedMarket] = useState<string>('usa');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templateCreatedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Custom nutrient name overrides (per-label customization)
+  const [customNutrientNames, setCustomNutrientNames] = useState<Record<string, Record<string, string>>>({});
+
+  // Bold formatting overrides (per-nutrient toggle)
+  const [nutrientBoldOverrides, setNutrientBoldOverrides] = useState<Record<string, boolean>>({});
+
+  // Sugar bifurcation - natural sugar calculated as total - added
+  const [showNaturalSugar, setShowNaturalSugar] = useState(false);
+
+  // Saved Labels Panel and Regulation Alert Modal states
+  const [showSavedLabelsPanel, setShowSavedLabelsPanel] = useState(false);
+  const [showRegulationAlert, setShowRegulationAlert] = useState(false);
+  const [selectedSavedLabel, setSelectedSavedLabel] = useState<SavedLabel | null>(null);
+  const [regulationAlertUpdates, setRegulationAlertUpdates] = useState<RegulationUpdate[]>([]);
+
+  // Sugar bifurcation input values (for prototype)
+  const [totalSugarInput, setTotalSugarInput] = useState<number>(15);
+  const [addedSugarInput, setAddedSugarInput] = useState<number>(10);
+
+  // Get current market regulation
+  const currentMarketRegulation = MARKET_REGULATIONS.find(m => m.id === selectedMarket) || MARKET_REGULATIONS[0];
+
+  // Check for regulation updates affecting current market
+  const marketRegulationUpdates = RECENT_REGULATION_UPDATES.filter(u => u.marketId === selectedMarket);
 
   // Load existing template
   const { data: template } = useQuery({
@@ -915,6 +1265,30 @@ export default function LabelBuilderPage() {
     });
   };
 
+  // Open a saved label and check compliance
+  const openSavedLabel = (label: SavedLabel) => {
+    const compliance = checkLabelCompliance(label);
+    setSelectedSavedLabel(label);
+    setShowSavedLabelsPanel(false);
+
+    // Update sugar inputs from saved label
+    if (label.totalSugar !== undefined) {
+      setTotalSugarInput(label.totalSugar);
+    }
+    if (label.addedSugar !== undefined) {
+      setAddedSugarInput(label.addedSugar);
+    }
+
+    // Update market selection
+    setSelectedMarket(label.marketId);
+
+    // If label needs review, show the alert modal
+    if (compliance.needsReview || label.status === 'review_needed') {
+      setRegulationAlertUpdates(compliance.updates);
+      setShowRegulationAlert(true);
+    }
+  };
+
   // Add element to canvas
   const addElement = (type: string) => {
     // Determine element dimensions based on type
@@ -1272,6 +1646,35 @@ export default function LabelBuilderPage() {
               </button>
             </div>
           </div>
+          <div className="w-px h-6 bg-gray-200 mx-2" />
+          <button
+            onClick={() => setShowSavedLabelsPanel(true)}
+            className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm"
+          >
+            <FolderOpen size={16} />
+            Saved Labels
+          </button>
+          {/* Compliance Status Badge */}
+          {selectedSavedLabel && (
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm ${getComplianceInfo(selectedSavedLabel.status).bgColor}`}>
+              <span>{getComplianceInfo(selectedSavedLabel.status).icon}</span>
+              <span className={getComplianceInfo(selectedSavedLabel.status).color}>
+                {getComplianceInfo(selectedSavedLabel.status).label}
+              </span>
+              {selectedSavedLabel.status === 'review_needed' && (
+                <button
+                  onClick={() => {
+                    const compliance = checkLabelCompliance(selectedSavedLabel);
+                    setRegulationAlertUpdates(compliance.updates);
+                    setShowRegulationAlert(true);
+                  }}
+                  className="ml-1 text-amber-700 hover:text-amber-900 underline text-xs"
+                >
+                  View Updates
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1758,7 +2161,14 @@ export default function LabelBuilderPage() {
                 <div className={`w-full h-full ${el.type === 'curved-text' ? 'overflow-visible' : 'overflow-hidden'}`}>
                   {el.type === 'nutrition-box' && (
                     <NutritionBoxPreview
-                      nutrition={nutrition}
+                      nutrition={showNaturalSugar && currentMarketRegulation.sugarBifurcation
+                        ? {
+                            ...nutrition,
+                            total_sugars: totalSugarInput,
+                            added_sugars: addedSugarInput,
+                          } as typeof nutrition
+                        : nutrition
+                      }
                       language={language}
                       selectedLanguages={selectedLanguages}
                       selectedNutrients={el.properties?.selectedNutrients as string[] | undefined}
@@ -1779,6 +2189,10 @@ export default function LabelBuilderPage() {
                         bgColor: String(el.properties?.bgColor || designSettings.backgroundColor),
                         textColor: String(el.properties?.textColor || designSettings.textColor),
                       }}
+                      customNutrientNames={customNutrientNames}
+                      nutrientBoldOverrides={nutrientBoldOverrides}
+                      showNaturalSugar={showNaturalSugar}
+                      applyFdaRounding={currentMarketRegulation.dvRegion === 'fda_us'}
                     />
                   )}
                   {el.type === 'ingredients-list' && (
@@ -2190,6 +2604,212 @@ export default function LabelBuilderPage() {
                       </div>
                     </div>
 
+                    {/* Target Market/Region Selector */}
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Target Market</label>
+                      <select
+                        value={selectedMarket}
+                        onChange={(e) => {
+                          const market = MARKET_REGULATIONS.find(m => m.id === e.target.value);
+                          setSelectedMarket(e.target.value);
+                          if (market) {
+                            // Auto-set languages based on market requirements
+                            if (market.requiredLanguages.length >= 2) {
+                              setLanguageMode('multi');
+                              setSelectedLanguages(market.requiredLanguages.slice(0, 2));
+                            } else if (market.requiredLanguages.length === 1) {
+                              setLanguageMode('single');
+                              setSelectedLanguages([market.requiredLanguages[0]]);
+                            }
+                            // Auto-enable sugar bifurcation if required
+                            setShowNaturalSugar(market.sugarBifurcation);
+                          }
+                        }}
+                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded"
+                      >
+                        {MARKET_REGULATIONS.map((market) => (
+                          <option key={market.id} value={market.id}>
+                            {market.name} ({market.country})
+                          </option>
+                        ))}
+                      </select>
+                      {/* Market Info */}
+                      <div className="mt-1 p-2 bg-gray-50 rounded text-[10px] space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Regulation:</span>
+                          <span className="font-medium">{currentMarketRegulation.regulationReference}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Last Updated:</span>
+                          <span>{new Date(currentMarketRegulation.lastUpdated).toLocaleDateString()}</span>
+                        </div>
+                        {currentMarketRegulation.requiredLanguages.length > 0 && (
+                          <div className="flex justify-between items-start">
+                            <span className="text-gray-500">Required:</span>
+                            <span className="text-amber-600 font-medium">
+                              {currentMarketRegulation.requiredLanguages.map(l =>
+                                AVAILABLE_LANGUAGES.find(a => a.code === l)?.name
+                              ).join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {currentMarketRegulation.regulationLink && (
+                          <a
+                            href={currentMarketRegulation.regulationLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline block"
+                          >
+                            View Regulation →
+                          </a>
+                        )}
+                        {currentMarketRegulation.notes && (
+                          <p className="text-gray-500 italic">{currentMarketRegulation.notes}</p>
+                        )}
+                      </div>
+
+                      {/* Regulation Update Alert */}
+                      {marketRegulationUpdates.length > 0 && (
+                        <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                          <div className="flex items-center gap-1 text-amber-700 font-medium text-[10px]">
+                            <AlertTriangle size={12} />
+                            Regulation Update
+                          </div>
+                          {marketRegulationUpdates.map((update, idx) => (
+                            <div key={idx} className="text-[9px] text-amber-600 mt-1">
+                              <div>Updated: {update.changeDate}</div>
+                              <ul className="list-disc pl-3 mt-0.5">
+                                {update.changes.slice(0, 2).map((change, i) => (
+                                  <li key={i}>{change}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Full Regulation Metadata Panel */}
+                    <div className="border-t border-gray-200 pt-3">
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                        <FileText size={12} />
+                        Regulation Metadata
+                      </h4>
+                      <div className="p-2 bg-blue-50 rounded border border-blue-200 space-y-2 text-[10px]">
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                          <div>
+                            <span className="text-gray-500">Regulation Name:</span>
+                            <div className="font-medium text-gray-800">{currentMarketRegulation.regulationName}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Reference Code:</span>
+                            <div className="font-medium text-gray-800">{currentMarketRegulation.regulationReference}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Country/Region:</span>
+                            <div className="font-medium text-gray-800">{currentMarketRegulation.country}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">DV Region:</span>
+                            <div className="font-medium text-gray-800">{currentMarketRegulation.dvRegion.toUpperCase().replace('_', ' ')}</div>
+                          </div>
+                        </div>
+                        <div className="border-t border-blue-200 pt-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Last Regulation Update:</span>
+                            <span className="font-medium">{new Date(currentMarketRegulation.lastUpdated).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                          </div>
+                        </div>
+                        {/* Template/Label Dates (for prototype) */}
+                        <div className="border-t border-blue-200 pt-2 space-y-1">
+                          <div className="font-medium text-gray-700">Label Timeline:</div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Template Created:</span>
+                            <span>{templateCreatedDate}</span>
+                          </div>
+                          {selectedSavedLabel && (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Label Created:</span>
+                                <span>{selectedSavedLabel.createdDate}</span>
+                              </div>
+                              {selectedSavedLabel.activatedDate && (
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">Label Activated:</span>
+                                  <span className="text-green-600 font-medium">{selectedSavedLabel.activatedDate}</span>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {/* Reference Links */}
+                        {currentMarketRegulation.regulationLink && (
+                          <div className="border-t border-blue-200 pt-2">
+                            <a
+                              href={currentMarketRegulation.regulationLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                            >
+                              <ExternalLink size={10} />
+                              View Official Regulation Document
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Sugar Bifurcation Control */}
+                    {currentMarketRegulation.sugarBifurcation && (
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-xs cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showNaturalSugar}
+                            onChange={(e) => setShowNaturalSugar(e.target.checked)}
+                            className="rounded border-gray-300"
+                          />
+                          <span>Show Sugar Bifurcation</span>
+                        </label>
+                        {showNaturalSugar && (
+                          <div className="ml-5 p-2 bg-gray-50 rounded border border-gray-200 space-y-2">
+                            <div className="flex gap-2 items-center">
+                              <label className="text-[10px] text-gray-500 w-16">Total (g):</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                value={totalSugarInput}
+                                onChange={(e) => setTotalSugarInput(parseFloat(e.target.value) || 0)}
+                                className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded w-16"
+                              />
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <label className="text-[10px] text-gray-500 w-16">Added (g):</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max={totalSugarInput}
+                                step="0.1"
+                                value={addedSugarInput}
+                                onChange={(e) => setAddedSugarInput(Math.min(parseFloat(e.target.value) || 0, totalSugarInput))}
+                                className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded w-16"
+                              />
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <label className="text-[10px] text-gray-500 w-16">Natural (g):</label>
+                              <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">
+                                {(totalSugarInput - addedSugarInput).toFixed(1)}g (calculated)
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 italic">
+                              Natural Sugar = Total - Added ({totalSugarInput}g - {addedSugarInput}g = {(totalSugarInput - addedSugarInput).toFixed(1)}g)
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Daily Value Baseline */}
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Daily Value Baseline (kcal/day)</label>
@@ -2330,6 +2950,119 @@ export default function LabelBuilderPage() {
                       >
                         Show All
                       </button>
+                    </div>
+
+                    {/* Custom Nutrient Names */}
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Customize Nutrient Names</label>
+                      <details className="border border-gray-200 rounded">
+                        <summary className="px-2 py-1.5 text-xs cursor-pointer hover:bg-gray-50 flex items-center gap-1">
+                          <ChevronDown size={12} />
+                          Edit Terminology ({Object.keys(customNutrientNames).length} customized)
+                        </summary>
+                        <div className="p-2 border-t border-gray-200 max-h-64 overflow-y-auto space-y-2">
+                          <p className="text-[10px] text-gray-400 mb-2">
+                            Override default names (applies to all languages)
+                          </p>
+                          {NUTRIENT_DEFINITIONS.slice(0, 15).map((nutrient) => (
+                            <div key={nutrient.key} className="grid grid-cols-2 gap-1">
+                              <span className="text-[10px] text-gray-600 py-1">{nutrient.nameEn}</span>
+                              <input
+                                type="text"
+                                placeholder={nutrient.nameEn}
+                                value={customNutrientNames[nutrient.key]?.['_custom'] || ''}
+                                onChange={(e) => {
+                                  // Apply to all languages using a special '_custom' key
+                                  setCustomNutrientNames(prev => ({
+                                    ...prev,
+                                    [nutrient.key]: {
+                                      '_custom': e.target.value,
+                                      // Also set for common language codes for compatibility
+                                      'en': e.target.value,
+                                      'ar': e.target.value,
+                                      'hi': e.target.value,
+                                      'zh': e.target.value,
+                                      'es': e.target.value,
+                                      'fr': e.target.value,
+                                      'ur': e.target.value,
+                                      'bn': e.target.value,
+                                    }
+                                  }));
+                                }}
+                                className="px-1.5 py-0.5 text-[10px] border border-gray-200 rounded"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+
+                    {/* Bold Formatting Control */}
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Bold Formatting</label>
+                      <details className="border border-gray-200 rounded">
+                        <summary className="px-2 py-1.5 text-xs cursor-pointer hover:bg-gray-50 flex items-center gap-1">
+                          <ChevronDown size={12} />
+                          Toggle Bold per Nutrient
+                        </summary>
+                        <div className="p-2 border-t border-gray-200 max-h-48 overflow-y-auto">
+                          {NUTRIENT_DEFINITIONS.filter(n => n.category === 'core').map((nutrient) => {
+                            const isCurrentlyBold = nutrientBoldOverrides[nutrient.key] !== undefined
+                              ? nutrientBoldOverrides[nutrient.key]
+                              : nutrient.bold;
+                            return (
+                              <label key={nutrient.key} className="flex items-center gap-2 text-[11px] py-0.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isCurrentlyBold}
+                                  onChange={(e) => {
+                                    setNutrientBoldOverrides(prev => ({
+                                      ...prev,
+                                      [nutrient.key]: e.target.checked
+                                    }));
+                                  }}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className={isCurrentlyBold ? 'font-bold' : ''}>
+                                  {nutrient.nameEn}
+                                </span>
+                                {nutrient.bold && (
+                                  <span className="text-[9px] text-gray-400">(default bold)</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    </div>
+
+                    {/* Label Description/Subtext */}
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Label Description</label>
+                      <input
+                        type="text"
+                        value={templateDescription}
+                        onChange={(e) => setTemplateDescription(e.target.value)}
+                        placeholder="e.g., For Saudi market, GSO compliant"
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-0.5">Internal reference note for this label</p>
+                    </div>
+
+                    {/* Label Metadata Display */}
+                    <div className="p-2 bg-gray-50 rounded text-[10px] space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Created:</span>
+                        <span>{templateCreatedDate}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Standard:</span>
+                        <span>{currentMarketRegulation.regulationName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Format:</span>
+                        <span>{String(selectedElementData.properties?.format || 'standard-vertical')}</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3274,6 +4007,258 @@ export default function LabelBuilderPage() {
           </div>
         </div>
       )}
+
+      {/* Saved Labels Panel Modal */}
+      {showSavedLabelsPanel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <FolderOpen size={20} />
+                Saved Labels
+              </h3>
+              <button
+                onClick={() => setShowSavedLabelsPanel(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              <p className="text-sm text-gray-600 mb-4">
+                Select a saved label to load. Labels that need regulatory review are highlighted.
+              </p>
+              <div className="space-y-3">
+                {MOCK_SAVED_LABELS.map((label) => {
+                  const compliance = checkLabelCompliance(label);
+                  const info = getComplianceInfo(label.status);
+                  const market = MARKET_REGULATIONS.find(m => m.id === label.marketId);
+
+                  return (
+                    <div
+                      key={label.id}
+                      onClick={() => openSavedLabel(label)}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                        label.status === 'review_needed'
+                          ? 'border-amber-300 bg-amber-50 hover:border-amber-400'
+                          : label.status === 'non_compliant'
+                          ? 'border-red-300 bg-red-50 hover:border-red-400'
+                          : 'border-gray-200 hover:border-primary-400'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <FileText size={16} className="text-gray-500" />
+                            <span className="font-medium">{label.name}</span>
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            Product: {label.productName}
+                          </div>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Globe size={12} />
+                              {market?.name || label.marketId}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar size={12} />
+                              Created: {label.createdDate}
+                            </span>
+                            {label.activatedDate && (
+                              <span className="flex items-center gap-1">
+                                <Calendar size={12} />
+                                Activated: {label.activatedDate}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            Regulation: {label.regulationVersion}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${info.bgColor} ${info.color}`}>
+                            {info.icon} {info.label}
+                          </span>
+                          {compliance.needsReview && (
+                            <span className="text-xs text-amber-600">
+                              {compliance.updates.length} update(s) available
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Sugar bifurcation preview */}
+                      {label.totalSugar !== undefined && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 text-xs">
+                          <span className="text-gray-500">Sugar Breakdown:</span>
+                          <div className="flex gap-4 mt-1">
+                            <span>Total: <strong>{label.totalSugar}g</strong></span>
+                            {label.addedSugar !== undefined && (
+                              <span>Added: <strong>{label.addedSugar}g</strong></span>
+                            )}
+                            {label.naturalSugar !== undefined && (
+                              <span>Natural: <strong>{label.naturalSugar}g</strong></span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => setShowSavedLabelsPanel(false)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Regulation Change Alert Modal */}
+      {showRegulationAlert && selectedSavedLabel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl mx-4">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200 bg-amber-50">
+              <h3 className="text-lg font-semibold flex items-center gap-2 text-amber-800">
+                <AlertTriangle size={20} />
+                Regulation Update Alert
+              </h3>
+              <button
+                onClick={() => setShowRegulationAlert(false)}
+                className="p-1 hover:bg-amber-100 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-amber-800">
+                  <strong>This label was created under an older regulation version.</strong>
+                  <br />
+                  New regulatory requirements have been published that may affect this label's compliance.
+                </p>
+              </div>
+
+              {/* Label Info */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                  <FileText size={14} />
+                  Label Details
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-500">Label Name:</span>
+                    <div className="font-medium">{selectedSavedLabel.name}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Product:</span>
+                    <div className="font-medium">{selectedSavedLabel.productName}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Created Under:</span>
+                    <div className="font-medium">{selectedSavedLabel.regulationVersion}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Created Date:</span>
+                    <div className="font-medium">{selectedSavedLabel.createdDate}</div>
+                  </div>
+                  {selectedSavedLabel.activatedDate && (
+                    <div>
+                      <span className="text-gray-500">Activated Date:</span>
+                      <div className="font-medium">{selectedSavedLabel.activatedDate}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Regulation Updates */}
+              <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                <Info size={14} />
+                Regulatory Updates Since Label Creation
+              </h4>
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {regulationAlertUpdates.length > 0 ? regulationAlertUpdates.map((update, idx) => {
+                  const market = MARKET_REGULATIONS.find(m => m.id === update.marketId);
+                  return (
+                    <div key={idx} className="p-3 border border-gray-200 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="font-medium text-sm">{update.description}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Market: {market?.name} | Change Date: {update.changeDate}
+                          </div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          update.severity === 'breaking'
+                            ? 'bg-red-100 text-red-700'
+                            : update.severity === 'major'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {update.severity}
+                        </span>
+                      </div>
+                      {update.affectedFields && update.affectedFields.length > 0 && (
+                        <div className="mt-2 text-xs text-gray-600">
+                          <strong>Affected Fields:</strong> {update.affectedFields.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }) : (
+                  <div className="p-3 text-sm text-gray-500 italic">
+                    No specific updates found, but the label was created under an older regulation version.
+                  </div>
+                )}
+              </div>
+
+              {/* Reference Links */}
+              {selectedSavedLabel.referenceLink && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <h4 className="font-medium text-sm mb-2">Reference Documents</h4>
+                  <a
+                    href={selectedSavedLabel.referenceLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700"
+                  >
+                    <ExternalLink size={14} />
+                    View Regulation Guidelines
+                  </a>
+                </div>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 flex justify-between">
+              <button
+                onClick={() => {
+                  // Mark as reviewed - in real app, this would update the status
+                  setSelectedSavedLabel({
+                    ...selectedSavedLabel,
+                    status: 'compliant',
+                    regulationVersion: currentMarketRegulation.regulationName,
+                    regulationDate: new Date().toISOString().split('T')[0],
+                  });
+                  setShowRegulationAlert(false);
+                  toast.success('Label marked as reviewed and updated to current regulation');
+                }}
+                className="px-4 py-2 text-sm bg-green-500 text-white rounded hover:bg-green-600"
+              >
+                Mark as Reviewed & Update
+              </button>
+              <button
+                onClick={() => setShowRegulationAlert(false)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Review Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3328,16 +4313,32 @@ interface NutritionBoxProps {
   showDailyValue?: boolean;
   showFootnote?: boolean;
   format?: NutritionLabelFormat;
+  // New customization options
+  customNutrientNames?: Record<string, Record<string, string>>;
+  nutrientBoldOverrides?: Record<string, boolean>;
+  showNaturalSugar?: boolean;
+  applyFdaRounding?: boolean;
 }
 
-// Helper: Get nutrient name by language code
-function getNutrientName(nutrient: typeof NUTRIENT_DEFINITIONS[0], langCode: string): string {
+// Helper: Get nutrient name by language code (with optional custom override)
+function getNutrientName(
+  nutrient: typeof NUTRIENT_DEFINITIONS[0],
+  langCode: string,
+  customNames?: Record<string, Record<string, string>>
+): string {
+  // Check for custom override first
+  if (customNames && customNames[nutrient.key] && customNames[nutrient.key][langCode]) {
+    return customNames[nutrient.key][langCode];
+  }
+
   switch (langCode) {
     case 'ar': return nutrient.nameAr || nutrient.nameEn;
     case 'hi': return nutrient.nameHi || nutrient.nameEn;
     case 'zh': return nutrient.nameZh || nutrient.nameEn;
     case 'es': return nutrient.nameEs || nutrient.nameEn;
     case 'fr': return nutrient.nameFr || nutrient.nameEn;
+    case 'ur': return nutrient.nameAr || nutrient.nameEn; // Urdu uses Arabic names as fallback
+    case 'bn': return nutrient.nameHi || nutrient.nameEn; // Bengali uses Hindi as fallback
     case 'en':
     default: return nutrient.nameEn;
   }
@@ -3386,8 +4387,17 @@ function calculateDV(key: string, value: number, dvBaselineCalories: number = 20
   return (value / adjustedDV) * 100;
 }
 
-// Helper: Format number for display
-function formatValue(value: number, decimals: number = 0): string {
+// Helper: Format number for display (with optional FDA rounding)
+function formatValue(value: number, decimals: number = 0, nutrientKey?: string, applyFdaRounding: boolean = false): string {
+  // Apply FDA rounding rules if specified
+  if (applyFdaRounding && nutrientKey) {
+    const roundedValue = applyRoundingRule(nutrientKey, value);
+    if (roundedValue === 0 && value > 0) {
+      return '<1';
+    }
+    return roundedValue + '';
+  }
+
   if (value < 1 && value > 0) {
     return value < 0.5 ? '<1' : '1';
   }
@@ -3410,6 +4420,9 @@ function StandardVerticalFormat({
   servingDescription,
   servingsPerContainer = 8,
   showFootnote = true,
+  customNutrientNames,
+  nutrientBoldOverrides,
+  showNaturalSugar,
 }: NutritionBoxProps) {
   const isBilingual = language === 'bilingual';
   const borderColor = styles.borderColor || '#000000';
@@ -3417,6 +4430,27 @@ function StandardVerticalFormat({
   // For bilingual mode, get the two selected languages
   const primaryLang = selectedLanguages[0] || 'en';
   const secondaryLang = selectedLanguages[1] || selectedLanguages[0] || 'en';
+
+  // Helper to check if nutrient should be bold (with override support)
+  const isBold = (nutrient: typeof NUTRIENT_DEFINITIONS[0]) => {
+    if (nutrientBoldOverrides && nutrientBoldOverrides[nutrient.key] !== undefined) {
+      return nutrientBoldOverrides[nutrient.key];
+    }
+    return nutrient.bold;
+  };
+
+  // Helper to get display name with custom override support
+  const getDisplayName = (nutrient: typeof NUTRIENT_DEFINITIONS[0], lang: string) => {
+    return getNutrientName(nutrient, lang, customNutrientNames);
+  };
+
+  // Helper to get custom name for a nutrient key (for special cases like Calories header)
+  const getCustomName = (nutrientKey: string, lang: string, defaultName: string) => {
+    if (customNutrientNames && customNutrientNames[nutrientKey] && customNutrientNames[nutrientKey][lang]) {
+      return customNutrientNames[nutrientKey][lang];
+    }
+    return defaultName;
+  };
 
   // Translation helpers
   const translations: Record<string, Record<string, string>> = {
@@ -3428,7 +4462,14 @@ function StandardVerticalFormat({
     dailyValue: { en: '% Daily Value*', ar: '* % القيمة اليومية', hi: '% दैनिक मूल्य*', zh: '% 每日摄入量*', es: '% Valor Diario*', fr: '% Valeur quotidienne*' },
   };
 
-  const t = (key: string, lang: string) => translations[key]?.[lang] || translations[key]?.['en'] || key;
+  // Translation helper that checks custom names first for nutrient-related keys
+  const t = (key: string, lang: string) => {
+    // Check if this key maps to a nutrient and has a custom name
+    if (key === 'calories') {
+      return getCustomName('calories', lang, translations[key]?.[lang] || translations[key]?.['en'] || key);
+    }
+    return translations[key]?.[lang] || translations[key]?.['en'] || key;
+  };
 
   const getDirByLang = (langCode: string) => {
     return ['ar', 'ur'].includes(langCode) ? 'rtl' : 'ltr';
@@ -3513,11 +4554,21 @@ function StandardVerticalFormat({
 
       {/* Main nutrients */}
       {coreNutrients.filter(n => n.key !== 'calories').map((nutrient) => {
-        const value = getNutrientValue(nutrition, nutrient.key);
+        // Skip natural_sugars if showNaturalSugar is false
+        if (nutrient.key === 'natural_sugars' && !showNaturalSugar) return null;
+
+        // Calculate natural sugar value if needed
+        let value = getNutrientValue(nutrition, nutrient.key);
+        if (nutrient.key === 'natural_sugars' && showNaturalSugar) {
+          const totalSugars = getNutrientValue(nutrition, 'total_sugars');
+          const addedSugars = getNutrientValue(nutrition, 'added_sugars');
+          value = Math.max(0, totalSugars - addedSugars);
+        }
+
         const dv = nutrient.showDV ? calculateDV(nutrient.key, value, dvBaselineCalories) : undefined;
         const displayName = isBilingual
-          ? `${getNutrientName(nutrient, primaryLang)} / ${getNutrientName(nutrient, secondaryLang)}`
-          : getNutrientName(nutrient, language || 'en');
+          ? `${getDisplayName(nutrient, primaryLang)} / ${getDisplayName(nutrient, secondaryLang)}`
+          : getDisplayName(nutrient, language || 'en');
 
         return (
           <div
@@ -3528,8 +4579,7 @@ function StandardVerticalFormat({
               paddingLeft: nutrient.indent ? `${nutrient.indent * 12}px` : '0',
             }}
           >
-            <span className={nutrient.bold ? 'font-bold' : ''}>
-              {nutrient.key === 'added_sugars' ? 'Includes ' : ''}
+            <span className={isBold(nutrient) ? 'font-bold' : ''}>
               {nutrient.key === 'trans_fat' ? <em>Trans</em> : ''}
               {nutrient.key === 'trans_fat' ? ' Fat' : displayName} {formatValue(value)}{nutrient.unit}
             </span>
@@ -3546,8 +4596,8 @@ function StandardVerticalFormat({
         const value = getNutrientValue(nutrition, nutrient.key);
         const dv = calculateDV(nutrient.key, value, dvBaselineCalories);
         const displayName = isBilingual
-          ? `${getNutrientName(nutrient, primaryLang)} / ${getNutrientName(nutrient, secondaryLang)}`
-          : getNutrientName(nutrient, language || 'en');
+          ? `${getDisplayName(nutrient, primaryLang)} / ${getDisplayName(nutrient, secondaryLang)}`
+          : getDisplayName(nutrient, language || 'en');
 
         return (
           <div
@@ -3555,7 +4605,7 @@ function StandardVerticalFormat({
             className="flex justify-between border-b py-[2px]"
             style={{ borderColor }}
           >
-            <span>{displayName} {formatValue(value, 1)}{nutrient.unit}</span>
+            <span className={isBold(nutrient) ? 'font-bold' : ''}>{displayName} {formatValue(value, 1)}{nutrient.unit}</span>
             <span>{dv !== undefined ? `${Math.round(dv)}%` : ''}</span>
           </div>
         );
@@ -4921,6 +5971,10 @@ function NutritionBoxPreview({
   showDailyValue = true,
   showFootnote = true,
   format = 'standard-vertical',
+  customNutrientNames,
+  nutrientBoldOverrides,
+  showNaturalSugar,
+  applyFdaRounding,
 }: NutritionBoxProps) {
   const props: NutritionBoxProps = {
     nutrition,
@@ -4935,6 +5989,10 @@ function NutritionBoxPreview({
     servingsPerContainer,
     showDailyValue,
     showFootnote,
+    customNutrientNames,
+    nutrientBoldOverrides,
+    showNaturalSugar,
+    applyFdaRounding,
   };
 
   // Route to the correct format component
