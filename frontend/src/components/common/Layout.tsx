@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import NutricalLogo from '../../assets/nutrical-logo.svg';
 import {
   LayoutDashboard,
   Package,
@@ -50,14 +51,7 @@ export default function Layout() {
       >
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">N</span>
-            </div>
-            <span className="font-bold text-xl">
-              Nutri<span className="text-primary-500">Cal</span>
-            </span>
-          </div>
+          <img src={NutricalLogo} alt="NutriCal" className="h-9" />
           <button
             className="lg:hidden p-1 hover:bg-gray-100 rounded"
             onClick={() => setSidebarOpen(false)}

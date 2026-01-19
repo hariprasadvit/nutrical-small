@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { templatesApi } from '../services/api';
+import type { Template } from '../types';
+import NutricalLogo from '../assets/nutrical-logo.svg';
 import {
   Plus,
   FileText,
@@ -9,7 +12,6 @@ import {
   Search,
   MoreVertical,
   Folder,
-  ChefHat,
   LogOut,
   Settings,
   User,
@@ -17,6 +19,8 @@ import {
   Copy,
   Trash2,
   Edit,
+  Layout,
+  Loader2,
 } from 'lucide-react';
 
 // Mock data for recent labels
@@ -55,12 +59,103 @@ const MOCK_LABELS = [
   },
 ];
 
-const MOCK_TEMPLATES = [
-  { id: '1', name: 'FDA Standard Vertical', region: 'USA', icon: '🇺🇸' },
-  { id: '2', name: 'GSO Bilingual', region: 'GCC', icon: '🇸🇦' },
-  { id: '3', name: 'EU Standard', region: 'Europe', icon: '🇪🇺' },
-  { id: '4', name: 'FSSAI Format', region: 'India', icon: '🇮🇳' },
+// Fallback preset templates when API is unavailable
+const FALLBACK_PRESETS: Template[] = [
+  {
+    id: 'preset-fda-vertical',
+    name: 'FDA Vertical',
+    description: 'Standard FDA nutrition facts label',
+    type: 'vertical',
+    width: 400,
+    height: 600,
+    shape: 'rectangle',
+    corner_radius: 0,
+    language: 'en',
+    elements: [],
+    styles: { fontFamily: 'Arial', fontSize: 12, borderWidth: 1, borderColor: '#000000', backgroundColor: '#ffffff' },
+    nutrition_config: { showCalories: true, showServingSize: true, showDailyValue: true, nutrients: [] },
+    display_preferences: { hideIngredients: false, hideAllergens: false, hideBusinessDetails: false, hideSugarAlcohol: false, showAdditionalMicronutrients: false, preferSodiumOverSalt: true, preferCalorieOverJoule: true },
+    is_preset: true,
+    is_public: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'preset-gso-bilingual',
+    name: 'GSO Bilingual',
+    description: 'GCC bilingual label (English/Arabic)',
+    type: 'dual-column',
+    width: 400,
+    height: 600,
+    shape: 'rectangle',
+    corner_radius: 0,
+    language: 'ar',
+    elements: [],
+    styles: { fontFamily: 'Arial', fontSize: 12, borderWidth: 1, borderColor: '#000000', backgroundColor: '#ffffff' },
+    nutrition_config: { showCalories: true, showServingSize: true, showDailyValue: true, nutrients: [] },
+    display_preferences: { hideIngredients: false, hideAllergens: false, hideBusinessDetails: false, hideSugarAlcohol: false, showAdditionalMicronutrients: false, preferSodiumOverSalt: true, preferCalorieOverJoule: true },
+    is_preset: true,
+    is_public: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'preset-eu-standard',
+    name: 'EU Standard',
+    description: 'European Union nutrition label',
+    type: 'tabular',
+    width: 400,
+    height: 600,
+    shape: 'rectangle',
+    corner_radius: 0,
+    language: 'en',
+    elements: [],
+    styles: { fontFamily: 'Arial', fontSize: 12, borderWidth: 1, borderColor: '#000000', backgroundColor: '#ffffff' },
+    nutrition_config: { showCalories: true, showServingSize: true, showDailyValue: true, nutrients: [] },
+    display_preferences: { hideIngredients: false, hideAllergens: false, hideBusinessDetails: false, hideSugarAlcohol: false, showAdditionalMicronutrients: false, preferSodiumOverSalt: false, preferCalorieOverJoule: false },
+    is_preset: true,
+    is_public: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'preset-fssai-india',
+    name: 'FSSAI India',
+    description: 'Indian FSSAI compliant label',
+    type: 'vertical',
+    width: 400,
+    height: 600,
+    shape: 'rectangle',
+    corner_radius: 0,
+    language: 'en',
+    elements: [],
+    styles: { fontFamily: 'Arial', fontSize: 12, borderWidth: 1, borderColor: '#000000', backgroundColor: '#ffffff' },
+    nutrition_config: { showCalories: true, showServingSize: true, showDailyValue: true, nutrients: [] },
+    display_preferences: { hideIngredients: false, hideAllergens: false, hideBusinessDetails: false, hideSugarAlcohol: false, showAdditionalMicronutrients: false, preferSodiumOverSalt: true, preferCalorieOverJoule: true },
+    is_preset: true,
+    is_public: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
 ];
+
+// Helper to get flag/icon for template type
+const getTemplateIcon = (type: string, language: string): string => {
+  if (language === 'ar' || type.toLowerCase().includes('gso')) return '🇸🇦';
+  if (type.toLowerCase().includes('eu')) return '🇪🇺';
+  if (type.toLowerCase().includes('fssai')) return '🇮🇳';
+  if (type.toLowerCase().includes('uk')) return '🇬🇧';
+  return '🇺🇸'; // Default to FDA/USA
+};
+
+// Helper to get region label for template
+const getTemplateRegion = (type: string, language: string): string => {
+  if (language === 'ar' || type.toLowerCase().includes('gso')) return 'GCC';
+  if (type.toLowerCase().includes('eu')) return 'Europe';
+  if (type.toLowerCase().includes('fssai')) return 'India';
+  if (type.toLowerCase().includes('uk')) return 'UK';
+  return 'USA';
+};
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -69,13 +164,48 @@ export default function HomePage() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<'recent' | 'starred' | 'all'>('recent');
 
+  // Preset templates state
+  const [presetTemplates, setPresetTemplates] = useState<Template[]>([]);
+  const [presetsLoading, setPresetsLoading] = useState(true);
+  const [presetsError, setPresetsError] = useState<string | null>(null);
+
+  // Fetch preset templates from API (with fallback)
+  useEffect(() => {
+    const fetchPresets = async () => {
+      try {
+        setPresetsLoading(true);
+        const presets = await templatesApi.getPresets();
+        // If API returns data, use it; otherwise use fallback
+        if (presets && presets.length > 0) {
+          setPresetTemplates(presets);
+        } else {
+          setPresetTemplates(FALLBACK_PRESETS);
+        }
+        setPresetsError(null);
+      } catch (error) {
+        console.error('Failed to fetch preset templates, using fallback:', error);
+        // Use fallback presets when API fails
+        setPresetTemplates(FALLBACK_PRESETS);
+        setPresetsError(null); // Don't show error since we have fallback
+      } finally {
+        setPresetsLoading(false);
+      }
+    };
+
+    fetchPresets();
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const handleCreateNew = () => {
-    navigate('/create');
+  const handleCreateNew = (templateId?: string) => {
+    if (templateId) {
+      navigate(`/create?template=${templateId}`);
+    } else {
+      navigate('/create');
+    }
   };
 
   const filteredLabels = MOCK_LABELS.filter(label =>
@@ -89,13 +219,8 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center">
-                <ChefHat className="text-white" size={22} />
-              </div>
-              <span className="font-bold text-xl text-gray-900">
-                Nutri<span className="text-emerald-600">Cal</span>
-              </span>
+            <div className="flex items-center gap-2">
+              <img src={NutricalLogo} alt="NutriCal" className="h-10" />
             </div>
 
             {/* Search */}
@@ -107,7 +232,7 @@ export default function HomePage() {
                   placeholder="Search labels..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-gray-100 border border-transparent rounded-lg focus:bg-white focus:border-gray-300 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2 bg-gray-100 border border-transparent rounded-lg focus:bg-white focus:border-[#e9b03d] focus:ring-2 focus:ring-[#e9b03d]/20 outline-none transition-all"
                 />
               </div>
             </div>
@@ -118,8 +243,8 @@ export default function HomePage() {
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
-                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <User size={18} className="text-emerald-600" />
+                <div className="w-8 h-8 bg-[#000055]/10 rounded-full flex items-center justify-center">
+                  <User size={18} className="text-[#000055]" />
                 </div>
                 <span className="text-sm font-medium text-gray-700 hidden sm:block">
                   {user?.name || 'User'}
@@ -166,30 +291,97 @@ export default function HomePage() {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <button
-            onClick={handleCreateNew}
-            className="p-6 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-white text-left transition-all group"
+            onClick={() => handleCreateNew()}
+            className="p-6 bg-[#000055] hover:bg-[#000044] rounded-xl text-white text-left transition-all group"
           >
-            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Plus size={24} />
+            <div className="w-12 h-12 bg-[#e9b03d] rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <Plus size={24} className="text-[#000055]" />
             </div>
             <h3 className="font-semibold text-lg">Create New Label</h3>
-            <p className="text-emerald-100 text-sm mt-1">Start from scratch or use a template</p>
+            <p className="text-white/70 text-sm mt-1">Start from scratch or use a template</p>
           </button>
 
-          {MOCK_TEMPLATES.slice(0, 3).map((template) => (
-            <button
-              key={template.id}
-              onClick={handleCreateNew}
-              className="p-6 bg-white border border-gray-200 hover:border-emerald-300 hover:shadow-md rounded-xl text-left transition-all group"
-            >
-              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-4 text-2xl group-hover:scale-110 transition-transform">
-                {template.icon}
-              </div>
-              <h3 className="font-semibold text-gray-900">{template.name}</h3>
-              <p className="text-gray-500 text-sm mt-1">{template.region}</p>
-            </button>
-          ))}
+          {presetsLoading ? (
+            // Loading skeleton for preset templates
+            <>
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="p-6 bg-white border border-gray-200 rounded-xl animate-pulse"
+                >
+                  <div className="w-12 h-12 bg-gray-200 rounded-lg mb-4" />
+                  <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-gray-100 rounded w-1/2" />
+                </div>
+              ))}
+            </>
+          ) : presetsError ? (
+            // Error state
+            <div className="col-span-3 p-6 bg-white border border-gray-200 rounded-xl text-center">
+              <Layout className="mx-auto text-gray-300 mb-2" size={32} />
+              <p className="text-gray-500 text-sm">{presetsError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-2 text-[#e9b03d] text-sm hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          ) : presetTemplates.length === 0 ? (
+            // No presets available
+            <div className="col-span-3 p-6 bg-white border border-gray-200 rounded-xl text-center">
+              <Layout className="mx-auto text-gray-300 mb-2" size={32} />
+              <p className="text-gray-500 text-sm">No preset templates available</p>
+            </div>
+          ) : (
+            // Render preset templates from API
+            presetTemplates.slice(0, 3).map((template) => (
+              <button
+                key={template.id}
+                onClick={() => handleCreateNew(template.id)}
+                className="p-6 bg-white border border-gray-200 hover:border-[#e9b03d] hover:shadow-md rounded-xl text-left transition-all group"
+              >
+                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-4 text-2xl group-hover:scale-110 transition-transform">
+                  {getTemplateIcon(template.type, template.language)}
+                </div>
+                <h3 className="font-semibold text-gray-900">{template.name}</h3>
+                <p className="text-gray-500 text-sm mt-1">
+                  {getTemplateRegion(template.type, template.language)} • {template.type}
+                </p>
+                <span className="inline-block mt-2 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded">
+                  Preset
+                </span>
+              </button>
+            ))
+          )}
         </div>
+
+        {/* All Preset Templates Section */}
+        {!presetsLoading && presetTemplates.length > 3 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">All Preset Templates</h2>
+              <span className="text-sm text-gray-500">{presetTemplates.length} templates</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {presetTemplates.slice(3).map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => handleCreateNew(template.id)}
+                  className="p-4 bg-white border border-gray-200 hover:border-[#e9b03d] hover:shadow-md rounded-xl text-left transition-all group"
+                >
+                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mb-3 text-xl group-hover:scale-110 transition-transform">
+                    {getTemplateIcon(template.type, template.language)}
+                  </div>
+                  <h3 className="font-medium text-gray-900 text-sm truncate">{template.name}</h3>
+                  <p className="text-gray-500 text-xs mt-1">
+                    {getTemplateRegion(template.type, template.language)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Labels Section */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -206,7 +398,7 @@ export default function HomePage() {
                   onClick={() => setActiveTab(tab.id as typeof activeTab)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-emerald-50 text-emerald-700'
+                      ? 'bg-[#e9b03d]/10 text-[#000055]'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
@@ -228,7 +420,7 @@ export default function HomePage() {
                 </p>
                 <button
                   onClick={handleCreateNew}
-                  className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 inline-flex items-center gap-2"
+                  className="mt-4 px-4 py-2 bg-[#000055] text-white rounded-lg hover:bg-[#000044] inline-flex items-center gap-2"
                 >
                   <Plus size={18} />
                   Create Label
@@ -239,7 +431,7 @@ export default function HomePage() {
                 {filteredLabels.map((label) => (
                   <div
                     key={label.id}
-                    className="group border border-gray-200 rounded-xl overflow-hidden hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer"
+                    className="group border border-gray-200 rounded-xl overflow-hidden hover:border-[#e9b03d] hover:shadow-md transition-all cursor-pointer"
                     onClick={() => navigate(`/create/${label.id}`)}
                   >
                     {/* Thumbnail */}
